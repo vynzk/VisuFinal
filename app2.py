@@ -12,17 +12,17 @@ data['fecha'] = pd.to_datetime(data['fecha'])
 contacted_counts = data['contactadopor'].value_counts().reset_index()
 contacted_counts.columns = ['contactadopor', 'count']
 
-canceled_hours = data[data['estado'] == 'anulada']
+canceled_hours = data[data['estado'] == 'anulada'].copy()
 canceled_hours_counts = canceled_hours['Medico'].value_counts().reset_index()
 canceled_hours_counts.columns = ['Medico', 'count']
 
-canceled_hours['count'] = 1
+canceled_hours.loc[:, 'count'] = 1
 
-finalized_hours = data[data['estado'] == 'finalizada']
+finalized_hours = data[data['estado'] == 'finalizada'].copy()
 finalized_hours_counts = finalized_hours.groupby(['tipoconsulta'])['estado'].count().reset_index()
 finalized_hours_counts.columns = ['tipoconsulta', 'count']
 
-finalized_hours['count'] = 1
+finalized_hours.loc[:, 'count'] = 1
 
 # Crear la app Dash
 app = Dash(__name__)
@@ -123,16 +123,6 @@ def update_admin_graph(selected_category, selected_admin):
         color='count', color_continuous_scale='Blues'
     )
 
-    if selected_admin:
-        admin_data = contacted_counts[contacted_counts['contactadopor'] == selected_admin]
-        if not admin_data.empty:
-            fig.add_trace(
-                go.Bar(
-                    x=[admin_data.iloc[0]['count']], 
-                    y=[selected_admin], 
-                    marker_color='orange', name='Seleccionado'
-                )
-            )
 
     fig.update_layout(plot_bgcolor=colors['background'], paper_bgcolor=colors['background'], font_color=colors['text'])
     return fig
@@ -164,18 +154,33 @@ def update_canceled_hours_pie(selected_medico, selected_dado_por, selected_mes):
      Input('mes-finalizada-dropdown', 'value')]
 )
 def update_finalized_hours_area(selected_tipo_consulta, selected_mes):
+    
+
     filtered_data = finalized_hours.copy()
+    filtered_data['stack_order'] = filtered_data.groupby('fecha').cumcount()
+    filtered_data['stacked_count'] = filtered_data['count'] + filtered_data['stack_order']
+
     if selected_tipo_consulta:
         filtered_data = filtered_data[filtered_data['tipoconsulta'] == selected_tipo_consulta]
     if selected_mes:
         filtered_data = filtered_data[filtered_data['fecha'].dt.strftime('%Y-%m') == selected_mes]
 
-    fig = px.area(
+    aggregated_data = filtered_data.groupby('tipoconsulta')['count'].sum().reset_index()
+    fig = px.bar(
         filtered_data, x='fecha', y='count', color='tipoconsulta',
-        title='Horas Finalizadas por Tipo de Consulta',
-        color_discrete_sequence=['#2A9D8F', '#E76F51']
+        title='Distribución de Horas Finalizadas por Fecha y Tipo de Consulta',
+        barmode='stack', color_discrete_sequence=px.colors.qualitative.Bold
+    )
+    fig.update_layout(
+        yaxis_title='Cantidad de Horas',
+        plot_bgcolor=colors['background'],
+        paper_bgcolor=colors['background'],
+        font_color=colors['text']
     )
     return fig
+
+
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)

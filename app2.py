@@ -77,15 +77,11 @@ app.layout = html.Div(style={'backgroundColor': colors['background'], 'fontFamil
     # ------------------ Médicos v/s Horas Anuladas --------------------------
     html.Div([
         html.H2("Médicos v/s Horas Anuladas", style={'color': colors['secondary']}),
-        dcc.Dropdown(
-            id='medico-dropdown',
-            options=[{'label': 'Todos', 'value': 'all'}] + [{'label': medico, 'value': medico} for medico in canceled_hours_counts['Medico']],
-            value='all'
-        ),
+
         dcc.Dropdown(
             id='dado-por-dropdown',
             options=[
-                {'label': 'Web', 'value': 'Web'},
+                {'label': 'Web', 'value': 'WEB'},
                 {'label': 'Médico', 'value': 'MEDICO'},
                 {'label': 'Administrativo', 'value': 'ADMINISTRATIVO'}
             ],
@@ -232,14 +228,12 @@ def update_bar_graph(selected_category, selected_admin):
 
 @app.callback(
     Output('canceled-data-table', 'data'),
-    [Input('medico-dropdown', 'value'),
+    [
      Input('dado-por-dropdown', 'value'),
      Input('mes-dropdown', 'value')]
 )
-def update_canceled_table(selected_medico, selected_dado_por, selected_mes):
+def update_canceled_table(selected_dado_por, selected_mes):
     filtered_data = canceled_hours.copy()
-    if selected_medico != 'all':
-        filtered_data = filtered_data[filtered_data['Medico'] == selected_medico]
     if selected_dado_por:
         filtered_data = filtered_data[filtered_data['dadoporperfil'] == selected_dado_por]
     if selected_mes:
@@ -253,23 +247,29 @@ def update_canceled_table(selected_medico, selected_dado_por, selected_mes):
 
 @app.callback(
     Output('canceled-hours-pie', 'figure'),
-    [Input('medico-dropdown', 'value'),
+    [
      Input('dado-por-dropdown', 'value'),
      Input('mes-dropdown', 'value')]
 )
-def update_canceled_hours_pie(selected_medico, selected_dado_por, selected_mes):
+def update_canceled_hours_pie(selected_dado_por, selected_mes):
     filtered_data = canceled_hours.copy()
-    if selected_medico != 'all':
-        filtered_data = filtered_data[filtered_data['Medico'] == selected_medico]
     if selected_dado_por:
         filtered_data = filtered_data[filtered_data['dadoporperfil'] == selected_dado_por]
     if selected_mes:
         filtered_data = filtered_data[filtered_data['fecha'].dt.strftime('%Y-%m') == selected_mes]
+    
+    c_canceled_hours = filtered_data.groupby('Medico')['count'].sum().reset_index()
+    c_canceled_hours.columns = ['Medico', 'c_count']
 
+    filtered_data = filtered_data.merge(c_canceled_hours, on='Medico', how='left')
     fig = px.pie(
         filtered_data, names='Medico', title='Proporción de Horas Anuladas',
-        color_discrete_sequence=px.colors.sequential.RdBu
+        color_discrete_sequence=px.colors.sequential.RdBu,
+        hover_data=['c_count'],
     )
+    
+
+
     return fig
 
 
@@ -295,25 +295,31 @@ def update_finalized_table(selected_tipo_consulta, selected_mes):
      Input('mes-finalizada-dropdown', 'value')]
 )
 def update_finalized_hours_area(selected_tipo_consulta, selected_mes):
-    
-
     filtered_data = finalized_hours.copy()
-    filtered_data['stack_order'] = filtered_data.groupby('fecha').cumcount()
-    filtered_data['stacked_count'] = filtered_data['count'] + filtered_data['stack_order']
 
     if selected_tipo_consulta:
         filtered_data = filtered_data[filtered_data['tipoconsulta'] == selected_tipo_consulta]
     if selected_mes:
         filtered_data = filtered_data[filtered_data['fecha'].dt.strftime('%Y-%m') == selected_mes]
 
-    aggregated_data = filtered_data.groupby('tipoconsulta')['count'].sum().reset_index()
-    fig = px.bar(
-        filtered_data, x='fecha', y='count', color='tipoconsulta',
-        title='Distribución de Horas Finalizadas por Fecha y Tipo de Consulta',
-        barmode='stack', color_discrete_sequence=px.colors.qualitative.Bold
-    )
+    # Agrupar por fecha y tipo de consulta y sumar los conteos
+    aggregated_data = filtered_data.groupby(['fecha', 'tipoconsulta'])['count'].sum().reset_index()
+
+    fig = go.Figure()
+    for tipo in aggregated_data['tipoconsulta'].unique():
+        tipo_data = aggregated_data[aggregated_data['tipoconsulta'] == tipo]
+        fig.add_trace(go.Bar(
+            x=tipo_data['fecha'],
+            y=tipo_data['count'],
+            name=tipo,
+            customdata=tipo_data[['tipoconsulta']],
+            hovertemplate='Tipo Consulta: %{customdata[0]}<br>Cantidad: %{y}<extra></extra>',
+            
+        ))
     fig.update_layout(
+        title='Distribución de Horas Finalizadas por Fecha y Tipo de Consulta',
         yaxis_title='Cantidad de Horas',
+        barmode='stack',
         plot_bgcolor=colors['background'],
         paper_bgcolor=colors['background'],
         font_color=colors['text']

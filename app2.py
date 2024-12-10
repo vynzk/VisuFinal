@@ -244,7 +244,6 @@ def update_canceled_table(selected_dado_por, selected_mes):
 
 
 # ------------------ CallBack Grafico 2 -------------------------
-
 @app.callback(
     Output('canceled-hours-pie', 'figure'),
     [
@@ -271,6 +270,7 @@ def update_canceled_hours_pie(selected_dado_por, selected_mes):
 
 
     return fig
+
 
 
 # ------------------- Callback Tabla 3 -----------------------------

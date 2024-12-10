@@ -250,7 +250,6 @@ def update_canceled_table(selected_medico, selected_dado_por, selected_mes):
 
 
 # ------------------ CallBack Grafico 2 -------------------------
-
 @app.callback(
     Output('canceled-hours-pie', 'figure'),
     [Input('medico-dropdown', 'value'),
@@ -259,6 +258,8 @@ def update_canceled_table(selected_medico, selected_dado_por, selected_mes):
 )
 def update_canceled_hours_pie(selected_medico, selected_dado_por, selected_mes):
     filtered_data = canceled_hours.copy()
+
+    # Filtrar los datos según las selecciones del usuario
     if selected_medico != 'all':
         filtered_data = filtered_data[filtered_data['Medico'] == selected_medico]
     if selected_dado_por:
@@ -266,11 +267,24 @@ def update_canceled_hours_pie(selected_medico, selected_dado_por, selected_mes):
     if selected_mes:
         filtered_data = filtered_data[filtered_data['fecha'].dt.strftime('%Y-%m') == selected_mes]
 
+    # Calcular el promedio de horas anuladas por médico
+    avg_canceled_hours = (
+        filtered_data.groupby('Medico')
+        .size()  # Conteo por médico
+        .reset_index(name='Conteo')
+    )
+
+    # Crear el gráfico de pastel con los conteos
     fig = px.pie(
-        filtered_data, names='Medico', title='Proporción de Horas Anuladas',
+        avg_canceled_hours,
+        names='Medico',
+        values='Conteo',  # Mostrar el conteo en lugar de porcentajes
+        title='Promedio de Horas Anuladas por Médico',
         color_discrete_sequence=px.colors.sequential.RdBu
     )
+
     return fig
+
 
 
 # ------------------- Callback Tabla 3 -----------------------------
